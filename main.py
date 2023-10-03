@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 import pyarrow.parquet as pq
 import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
+
 
 app = FastAPI()
 
@@ -108,3 +110,41 @@ def sentiment_analysis(year):
     }
     
     return result
+
+
+# Paso 1: Preprocesamiento de datos
+games = df_games[['id', 'genres', 'title']]
+
+# Limpia los valores de la columna 'genres' eliminando comas y espacios adicionales
+games['genres'] = games['genres'].apply(lambda x: ', '.join([genre.strip() for genre in str(x).split(',')]))
+
+# Paso 2: Codificación one-hot de géneros
+genres_encoded = pd.get_dummies(games['genres'].str.split(', ').apply(pd.Series).stack())
+
+# Suma las columnas para obtener la codificación de género
+genres_encoded = genres_encoded.groupby(level=0).sum()
+
+# Paso 3: Función de recomendación
+def recomendacion_juego(id_de_producto):
+    # Encuentra el vector de género del juego de entrada
+    juego_genero = genres_encoded.loc[df_games[df_games['id'] == id_de_producto].index[0]]
+
+    # Calcula la similitud del coseno entre el juego de entrada y todos los juegos
+    sim_scores = genres_encoded.dot(juego_genero)
+
+    # Ordena los juegos por similitud y selecciona los 5 más similares
+    indices_juegos_similares = sim_scores.nlargest(6).index
+    juegos_recomendados = games.loc[indices_juegos_similares]['title'].tolist()
+    
+    # Excluye el juego de entrada por título y devuelve los títulos de los 5 más similares
+    juego_entrada_title = games[games['id'] == id_de_producto]['title'].values[0]
+    juegos_recomendados = [juego for juego in juegos_recomendados if juego != juego_entrada_title]
+    return juegos_recomendados[:5]
+
+# Agrega la función de recomendación de juegos basada en género como una nueva ruta en la API
+@app.get("/RecommendGames")
+def recommend_games(game_id: int):
+    juego_recomendado = recomendacion_juego(game_id)
+    return {"RecommendedGames": juego_recomendado}
+
+
