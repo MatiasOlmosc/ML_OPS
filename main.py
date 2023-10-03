@@ -11,9 +11,7 @@ df_items = pd.read_parquet('items.parquet')
 df_games = pd.read_csv('df_games.csv')
 merged_df = pd.read_csv('merged_data.csv')
 
-@app.get("/")
-async def read_root():
-    return {"message": "Bienvenido a la API de Steam"}
+
 
 @app.get("/PlayTimeGenre")
 def read_playtime_genre(genero: str = 'Género X'):
