@@ -124,25 +124,35 @@ genres_encoded = genres_encoded.groupby(level=0).sum()
 
 # Paso 3: Función de recomendación
 def recomendacion_juego(id_de_producto):
-    # Encuentra el vector de género del juego de entrada
-    juego_genero = genres_encoded.loc[df_games[df_games['id'] == id_de_producto].index[0]]
+    try:
+        # Encuentra el vector de género del juego de entrada
+        juego_genero = genres_encoded.loc[df_games[df_games['id'] == id_de_producto].index[0]]
 
-    # Calcula la similitud del coseno entre el juego de entrada y todos los juegos
-    sim_scores = genres_encoded.dot(juego_genero)
+        # Calcula la similitud del coseno entre el juego de entrada y todos los juegos
+        sim_scores = cosine_similarity([juego_genero], genres_encoded)[0]
 
-    # Ordena los juegos por similitud y selecciona los 5 más similares
-    indices_juegos_similares = sim_scores.nlargest(6).index
-    juegos_recomendados = games.loc[indices_juegos_similares]['title'].tolist()
-    
-    # Excluye el juego de entrada por título y devuelve los títulos de los 5 más similares
-    juego_entrada_title = games[games['id'] == id_de_producto]['title'].values[0]
-    juegos_recomendados = [juego for juego in juegos_recomendados if juego != juego_entrada_title]
-    return juegos_recomendados[:5]
+        # Enumera las similitudes del coseno junto con los índices de los juegos
+        sim_scores_with_indices = list(enumerate(sim_scores))
 
-# Agrega la función de recomendación de juegos basada en género como una nueva ruta en la API
-@app.get("/RecommendGames")
-def recommend_games(game_id: int):
-    juego_recomendado = recomendacion_juego(game_id)
-    return {"RecommendedGames": juego_recomendado}
+        # Ordena los juegos por similitud del coseno en orden descendente
+        sim_scores_with_indices.sort(key=lambda x: x[1], reverse=True)
+
+        # Obtiene los índices de los juegos más similares (excluyendo el propio juego)
+        top_indices = [index for index, _ in sim_scores_with_indices[1:6]]
+
+        # Obtiene los títulos de los juegos más similares
+        top_games = games.iloc[top_indices]['title'].tolist()
+
+        return top_games
+
+    except Exception as e:
+        return {"message": f"Error: {str(e)}"}
+
+# Ruta para la recomendación de juegos
+@app.get("/RecommendGames/{game_id}")
+def get_recommended_games(game_id: int):
+    recommended_games = recomendacion_juego(game_id)
+    return {"recommended_games": recommended_games}
+
 
 
